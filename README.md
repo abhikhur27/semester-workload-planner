@@ -50,3 +50,5 @@ python -m py_compile planner.py
 - Project type: Python command-line utility for real student workflow planning.
 - Best use case: quickly drafting a defensible weekly plan before exam clusters.
 - Future direction: export to `.ics` calendar format and add weekend/weekday budget profiles.
+- Current status: incubation only (not listed on main portfolio homepage).
+- Build tracker: see `DEVELOPMENT_CYCLE.md` for the multi-day quality plan.
