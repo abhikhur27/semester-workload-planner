@@ -20,6 +20,12 @@ When several courses have overlapping deadlines, ad-hoc planning usually underes
 python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3 --output plan.csv
 ```
 
+If weekends should stay clear by default:
+
+```bash
+python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3 --skip-weekends
+```
+
 ## Example output snippet
 
 ```text
