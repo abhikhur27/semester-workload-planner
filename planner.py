@@ -171,6 +171,22 @@ def print_summary(
     print(f"- Planned hours: {plan_hours:.1f}")
     print(f"- Unplanned risk hours: {risk_hours:.1f}")
 
+    course_rollup: dict[str, dict[str, float]] = {}
+    for task in tasks:
+        course_rollup.setdefault(task.course, {"estimated": 0.0, "planned": 0.0, "risk": 0.0})
+        course_rollup[task.course]["estimated"] += task.hours
+    for row in allocations:
+        course_rollup.setdefault(row.course, {"estimated": 0.0, "planned": 0.0, "risk": 0.0})
+        bucket = "risk" if row.task_name.startswith("RISK:") else "planned"
+        course_rollup[row.course][bucket] += row.hours
+
+    print("\nCourse rollup:")
+    for course, totals in sorted(course_rollup.items()):
+        print(
+            f"  {course:<12} | est {totals['estimated']:.1f}h | "
+            f"planned {totals['planned']:.1f}h | risk {totals['risk']:.1f}h"
+        )
+
     print("\nNext 10 allocations:")
     for row in allocations[:10]:
         print(f"  {row.date.isoformat()} | {row.course:<8} | {row.task_name:<40} | {row.hours:.1f}h")

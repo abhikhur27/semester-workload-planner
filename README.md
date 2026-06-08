@@ -13,6 +13,7 @@ When several courses have overlapping deadlines, ad-hoc planning usually underes
 - Daily hour budget enforcement
 - Explicit risk rows for overdue/unplanned workload
 - Optional CSV export for calendar imports or spreadsheet review
+- Per-course rollup summary for fast overload review
 
 ## Usage
 
