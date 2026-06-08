@@ -27,6 +27,12 @@ If weekends should stay clear by default:
 python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3 --skip-weekends
 ```
 
+If you want lighter weekends instead of removing them entirely:
+
+```bash
+python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3 --weekend-hours 1.5
+```
+
 ## Example output snippet
 
 ```text

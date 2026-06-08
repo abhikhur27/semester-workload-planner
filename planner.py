@@ -37,6 +37,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--start-date", default=dt.date.today().isoformat(), help="Plan start date (YYYY-MM-DD).")
     parser.add_argument("--daily-hours", type=float, default=3.0, help="Max allocatable hours per day.")
     parser.add_argument(
+        "--weekend-hours",
+        type=float,
+        help="Optional Saturday/Sunday hour budget override when weekends are included.",
+    )
+    parser.add_argument(
         "--skip-weekends",
         action="store_true",
         help="Plan only on weekdays so Saturday/Sunday stay clear unless work spills into risk rows.",
@@ -110,9 +115,17 @@ def score_task(task: Task, day: dt.date) -> float:
     return (0.55 * urgency) + (0.3 * priority_weight) + (0.15 * workload)
 
 
-def build_plan(tasks: list[Task], start_date: dt.date, daily_hours: float, skip_weekends: bool = False) -> list[Allocation]:
+def build_plan(
+    tasks: list[Task],
+    start_date: dt.date,
+    daily_hours: float,
+    skip_weekends: bool = False,
+    weekend_hours: float | None = None,
+) -> list[Allocation]:
     if daily_hours <= 0:
         raise ValueError("daily-hours must be positive.")
+    if weekend_hours is not None and weekend_hours < 0:
+        raise ValueError("weekend-hours cannot be negative.")
 
     mutable = [Task(**vars(task)) for task in tasks]
     last_due = max(task.due_date for task in mutable)
@@ -124,7 +137,7 @@ def build_plan(tasks: list[Task], start_date: dt.date, daily_hours: float, skip_
     for day in daterange(start_date, last_due):
         if skip_weekends and day.weekday() >= 5:
             continue
-        budget = daily_hours
+        budget = weekend_hours if weekend_hours is not None and day.weekday() >= 5 else daily_hours
         candidates = [task for task in mutable if task.hours > 0 and task.due_date >= day]
         while budget > 1e-9 and candidates:
             candidates.sort(key=lambda task: score_task(task, day), reverse=True)
@@ -157,6 +170,7 @@ def print_summary(
     start_date: dt.date,
     daily_hours: float,
     skip_weekends: bool,
+    weekend_hours: float | None,
 ) -> None:
     total_hours = sum(task.hours for task in tasks)
     plan_hours = sum(item.hours for item in allocations if not item.task_name.startswith("RISK:"))
@@ -165,6 +179,8 @@ def print_summary(
     print("Semester Workload Planner")
     print(f"- Start date: {start_date.isoformat()}")
     print(f"- Daily budget: {daily_hours:.1f}h")
+    if not skip_weekends and weekend_hours is not None:
+        print(f"- Weekend budget: {weekend_hours:.1f}h")
     print(f"- Scheduling mode: {'Weekdays only' if skip_weekends else 'All days'}")
     print(f"- Tasks loaded: {len(tasks)}")
     print(f"- Estimated hours: {total_hours:.1f}")
@@ -205,8 +221,21 @@ def main() -> None:
     args = parse_args()
     start_date = parse_date(args.start_date)
     tasks = load_tasks(Path(args.tasks))
-    allocations = build_plan(tasks, start_date, args.daily_hours, skip_weekends=args.skip_weekends)
-    print_summary(tasks, allocations, start_date, args.daily_hours, skip_weekends=args.skip_weekends)
+    allocations = build_plan(
+        tasks,
+        start_date,
+        args.daily_hours,
+        skip_weekends=args.skip_weekends,
+        weekend_hours=args.weekend_hours,
+    )
+    print_summary(
+        tasks,
+        allocations,
+        start_date,
+        args.daily_hours,
+        skip_weekends=args.skip_weekends,
+        weekend_hours=args.weekend_hours,
+    )
 
     if args.output:
         output_path = Path(args.output)
