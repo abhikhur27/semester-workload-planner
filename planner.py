@@ -47,6 +47,7 @@ def parse_args() -> argparse.Namespace:
         help="Plan only on weekdays so Saturday/Sunday stay clear unless work spills into risk rows.",
     )
     parser.add_argument("--output", help="Optional output CSV path for the generated plan.")
+    parser.add_argument("--daily-summary-output", help="Optional CSV path for per-day planned/risk hour totals.")
     return parser.parse_args()
 
 
@@ -217,6 +218,25 @@ def write_output(path: Path, allocations: list[Allocation]) -> None:
             writer.writerow([row.date.isoformat(), row.course, row.task_name, f"{row.hours:.2f}"])
 
 
+def write_daily_summary(path: Path, allocations: list[Allocation]) -> None:
+    daily: dict[dt.date, dict[str, float]] = {}
+    for row in allocations:
+        bucket = daily.setdefault(row.date, {"planned_hours": 0.0, "risk_hours": 0.0})
+        if row.task_name.startswith("RISK:"):
+            bucket["risk_hours"] += row.hours
+        else:
+            bucket["planned_hours"] += row.hours
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["date", "planned_hours", "risk_hours", "total_hours"])
+        for day in sorted(daily):
+            planned = daily[day]["planned_hours"]
+            risk = daily[day]["risk_hours"]
+            writer.writerow([day.isoformat(), f"{planned:.2f}", f"{risk:.2f}", f"{planned + risk:.2f}"])
+
+
 def main() -> None:
     args = parse_args()
     start_date = parse_date(args.start_date)
@@ -241,6 +261,11 @@ def main() -> None:
         output_path = Path(args.output)
         write_output(output_path, allocations)
         print(f"\nWrote plan CSV: {output_path}")
+
+    if args.daily_summary_output:
+        daily_summary_path = Path(args.daily_summary_output)
+        write_daily_summary(daily_summary_path, allocations)
+        print(f"Wrote daily summary CSV: {daily_summary_path}")
 
 
 if __name__ == "__main__":
