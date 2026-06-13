@@ -33,6 +33,12 @@ If you want lighter weekends instead of removing them entirely:
 python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3 --weekend-hours 1.5
 ```
 
+Export the planned study blocks as an ICS calendar:
+
+```bash
+python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3 --calendar-output plan.ics --day-start-hour 18
+```
+
 ## Example output snippet
 
 ```text
@@ -56,12 +62,13 @@ Exam 1 Review,CS3377,2026-06-05,7,5
 ```bash
 python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3
 python -m py_compile planner.py
+python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3 --calendar-output sample.ics
 ```
 
 ## Portfolio Positioning
 
 - Project type: Python command-line utility for real student workflow planning.
 - Best use case: quickly drafting a defensible weekly plan before exam clusters.
-- Future direction: export to `.ics` calendar format and add weekend/weekday budget profiles.
+- Current direction: CSV plan plus `.ics` study-block export for calendar review.
 - Current status: incubation only (not listed on main portfolio homepage).
 - Build tracker: see `DEVELOPMENT_CYCLE.md` for the multi-day quality plan.

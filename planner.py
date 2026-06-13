@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as dt
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -48,6 +49,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--output", help="Optional output CSV path for the generated plan.")
     parser.add_argument("--daily-summary-output", help="Optional CSV path for per-day planned/risk hour totals.")
+    parser.add_argument("--calendar-output", help="Optional ICS path for planned study blocks.")
+    parser.add_argument(
+        "--day-start-hour",
+        type=int,
+        default=18,
+        help="Local start hour for exported calendar blocks (0-23).",
+    )
     return parser.parse_args()
 
 
@@ -237,6 +245,56 @@ def write_daily_summary(path: Path, allocations: list[Allocation]) -> None:
             writer.writerow([day.isoformat(), f"{planned:.2f}", f"{risk:.2f}", f"{planned + risk:.2f}"])
 
 
+def format_ics_timestamp(value: dt.datetime) -> str:
+    return value.strftime("%Y%m%dT%H%M%S")
+
+
+def write_calendar_output(path: Path, allocations: list[Allocation], day_start_hour: int) -> None:
+    if not 0 <= day_start_hour <= 23:
+        raise ValueError("day-start-hour must be between 0 and 23.")
+
+    planned = [row for row in allocations if not row.task_name.startswith("RISK:")]
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Abhi Portfolio//Semester Workload Planner//EN",
+        "CALSCALE:GREGORIAN",
+    ]
+    generated_at = format_ics_timestamp(dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
+    grouped: dict[tuple[dt.date, str, str], float] = {}
+    for row in planned:
+        key = (row.date, row.course, row.task_name)
+        grouped[key] = grouped.get(key, 0.0) + row.hours
+
+    daily_offsets: dict[dt.date, float] = {}
+    for (day, course, task_name), hours in sorted(grouped.items()):
+        start_offset = daily_offsets.get(day, 0.0)
+        start_minutes = int(round(start_offset * 60))
+        duration_minutes = max(30, int(round(hours * 60)))
+        start_time = dt.datetime.combine(day, dt.time(hour=day_start_hour)) + dt.timedelta(minutes=start_minutes)
+        end_time = start_time + dt.timedelta(minutes=duration_minutes)
+        daily_offsets[day] = start_offset + hours
+        uid = uuid.uuid4().hex
+        safe_summary = f"{course}: {task_name}".replace("\n", " ").replace(",", "\\,").replace(";", "\\;")
+        lines.extend(
+            [
+                "BEGIN:VEVENT",
+                f"UID:{uid}",
+                f"DTSTAMP:{generated_at}Z",
+                f"DTSTART:{format_ics_timestamp(start_time)}",
+                f"DTEND:{format_ics_timestamp(end_time)}",
+                f"SUMMARY:{safe_summary}",
+                f"DESCRIPTION:Planned study block from Semester Workload Planner. Estimated hours {hours:.2f}.",
+                "END:VEVENT",
+            ]
+        )
+
+    lines.append("END:VCALENDAR")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     args = parse_args()
     start_date = parse_date(args.start_date)
@@ -266,6 +324,11 @@ def main() -> None:
         daily_summary_path = Path(args.daily_summary_output)
         write_daily_summary(daily_summary_path, allocations)
         print(f"Wrote daily summary CSV: {daily_summary_path}")
+
+    if args.calendar_output:
+        calendar_output_path = Path(args.calendar_output)
+        write_calendar_output(calendar_output_path, allocations, args.day_start_hour)
+        print(f"Wrote calendar ICS: {calendar_output_path}")
 
 
 if __name__ == "__main__":
