@@ -56,6 +56,11 @@ def parse_args() -> argparse.Namespace:
         default=18,
         help="Local start hour for exported calendar blocks (0-23).",
     )
+    parser.add_argument(
+        "--max-course-hours-per-day",
+        type=float,
+        help="Optional per-course daily cap so one class does not monopolize the plan.",
+    )
     return parser.parse_args()
 
 
@@ -130,11 +135,14 @@ def build_plan(
     daily_hours: float,
     skip_weekends: bool = False,
     weekend_hours: float | None = None,
+    max_course_hours_per_day: float | None = None,
 ) -> list[Allocation]:
     if daily_hours <= 0:
         raise ValueError("daily-hours must be positive.")
     if weekend_hours is not None and weekend_hours < 0:
         raise ValueError("weekend-hours cannot be negative.")
+    if max_course_hours_per_day is not None and max_course_hours_per_day <= 0:
+        raise ValueError("max-course-hours-per-day must be positive.")
 
     mutable = [Task(**vars(task)) for task in tasks]
     last_due = max(task.due_date for task in mutable)
@@ -147,13 +155,36 @@ def build_plan(
         if skip_weekends and day.weekday() >= 5:
             continue
         budget = weekend_hours if weekend_hours is not None and day.weekday() >= 5 else daily_hours
+        course_hours_today: dict[str, float] = {}
         candidates = [task for task in mutable if task.hours > 0 and task.due_date >= day]
         while budget > 1e-9 and candidates:
-            candidates.sort(key=lambda task: score_task(task, day), reverse=True)
-            selected = candidates[0]
-            chunk = min(1.0, selected.hours, budget)
+            capped_candidates = candidates
+            if max_course_hours_per_day is not None:
+                capped_candidates = [
+                    task
+                    for task in candidates
+                    if course_hours_today.get(task.course, 0.0) < max_course_hours_per_day - 1e-9
+                ]
+                if not capped_candidates:
+                    capped_candidates = candidates
+
+            capped_candidates.sort(key=lambda task: score_task(task, day), reverse=True)
+            selected = capped_candidates[0]
+            course_budget = max_course_hours_per_day
+            if course_budget is not None:
+                course_budget = max(course_budget - course_hours_today.get(selected.course, 0.0), 0.0)
+            chunk = min(
+                1.0,
+                selected.hours,
+                budget,
+                course_budget if course_budget is not None and course_budget > 0 else 1.0,
+            )
+            if chunk <= 1e-9:
+                candidates = [task for task in mutable if task.hours > 0 and task.due_date >= day and task is not selected]
+                continue
             selected.hours -= chunk
             budget -= chunk
+            course_hours_today[selected.course] = course_hours_today.get(selected.course, 0.0) + chunk
             allocations.append(Allocation(date=day, task_name=selected.name, course=selected.course, hours=chunk))
             candidates = [task for task in mutable if task.hours > 0 and task.due_date >= day]
 
@@ -180,6 +211,7 @@ def print_summary(
     daily_hours: float,
     skip_weekends: bool,
     weekend_hours: float | None,
+    max_course_hours_per_day: float | None,
 ) -> None:
     total_hours = sum(task.hours for task in tasks)
     plan_hours = sum(item.hours for item in allocations if not item.task_name.startswith("RISK:"))
@@ -190,6 +222,8 @@ def print_summary(
     print(f"- Daily budget: {daily_hours:.1f}h")
     if not skip_weekends and weekend_hours is not None:
         print(f"- Weekend budget: {weekend_hours:.1f}h")
+    if max_course_hours_per_day is not None:
+        print(f"- Per-course daily cap: {max_course_hours_per_day:.1f}h")
     print(f"- Scheduling mode: {'Weekdays only' if skip_weekends else 'All days'}")
     print(f"- Tasks loaded: {len(tasks)}")
     print(f"- Estimated hours: {total_hours:.1f}")
@@ -305,6 +339,7 @@ def main() -> None:
         args.daily_hours,
         skip_weekends=args.skip_weekends,
         weekend_hours=args.weekend_hours,
+        max_course_hours_per_day=args.max_course_hours_per_day,
     )
     print_summary(
         tasks,
@@ -313,6 +348,7 @@ def main() -> None:
         args.daily_hours,
         skip_weekends=args.skip_weekends,
         weekend_hours=args.weekend_hours,
+        max_course_hours_per_day=args.max_course_hours_per_day,
     )
 
     if args.output:

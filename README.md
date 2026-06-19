@@ -11,6 +11,7 @@ When several courses have overlapping deadlines, ad-hoc planning usually underes
 - Strict CSV schema validation (`task,course,due_date,estimated_hours,priority`)
 - Priority + deadline-aware scoring per day
 - Daily hour budget enforcement
+- Optional per-course daily cap so one class does not consume the whole day
 - Explicit risk rows for overdue/unplanned workload
 - Optional CSV export for calendar imports or spreadsheet review
 - Per-course rollup summary for fast overload review
@@ -39,6 +40,12 @@ Export the planned study blocks as an ICS calendar:
 python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3 --calendar-output plan.ics --day-start-hour 18
 ```
 
+Keep any single course from taking over a day:
+
+```bash
+python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 4 --max-course-hours-per-day 2
+```
+
 ## Example output snippet
 
 ```text
@@ -63,6 +70,7 @@ Exam 1 Review,CS3377,2026-06-05,7,5
 python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3
 python -m py_compile planner.py
 python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3 --calendar-output sample.ics
+python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 4 --max-course-hours-per-day 2
 ```
 
 ## Portfolio Positioning
