@@ -12,6 +12,7 @@ When several courses have overlapping deadlines, ad-hoc planning usually underes
 - Priority + deadline-aware scoring per day
 - Daily hour budget enforcement
 - Optional per-course daily cap so one class does not consume the whole day
+- Optional blocked-date list for interviews, travel, or other unavailable days
 - Explicit risk rows for overdue/unplanned workload
 - Optional CSV export for calendar imports or spreadsheet review
 - Per-course rollup summary for fast overload review
@@ -44,6 +45,12 @@ Keep any single course from taking over a day:
 
 ```bash
 python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 4 --max-course-hours-per-day 2
+```
+
+Protect days that are already spoken for:
+
+```bash
+python planner.py --tasks sample_tasks.csv --start-date 2026-06-01 --daily-hours 3 --blocked-dates 2026-06-04,2026-06-07
 ```
 
 ## Example output snippet

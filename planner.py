@@ -61,6 +61,10 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Optional per-course daily cap so one class does not monopolize the plan.",
     )
+    parser.add_argument(
+        "--blocked-dates",
+        help="Optional comma-separated YYYY-MM-DD dates to keep completely unavailable.",
+    )
     return parser.parse_args()
 
 
@@ -114,6 +118,17 @@ def load_tasks(path: Path) -> list[Task]:
     return tasks
 
 
+def parse_blocked_dates(raw: str | None) -> set[dt.date]:
+    if not raw:
+        return set()
+    blocked: set[dt.date] = set()
+    for token in raw.split(","):
+        stripped = token.strip()
+        if stripped:
+            blocked.add(parse_date(stripped))
+    return blocked
+
+
 def daterange(start: dt.date, end: dt.date) -> Iterable[dt.date]:
     cur = start
     while cur <= end:
@@ -136,6 +151,7 @@ def build_plan(
     skip_weekends: bool = False,
     weekend_hours: float | None = None,
     max_course_hours_per_day: float | None = None,
+    blocked_dates: set[dt.date] | None = None,
 ) -> list[Allocation]:
     if daily_hours <= 0:
         raise ValueError("daily-hours must be positive.")
@@ -144,6 +160,7 @@ def build_plan(
     if max_course_hours_per_day is not None and max_course_hours_per_day <= 0:
         raise ValueError("max-course-hours-per-day must be positive.")
 
+    blocked_dates = blocked_dates or set()
     mutable = [Task(**vars(task)) for task in tasks]
     last_due = max(task.due_date for task in mutable)
     if start_date > last_due:
@@ -153,6 +170,8 @@ def build_plan(
 
     for day in daterange(start_date, last_due):
         if skip_weekends and day.weekday() >= 5:
+            continue
+        if day in blocked_dates:
             continue
         budget = weekend_hours if weekend_hours is not None and day.weekday() >= 5 else daily_hours
         course_hours_today: dict[str, float] = {}
@@ -212,6 +231,7 @@ def print_summary(
     skip_weekends: bool,
     weekend_hours: float | None,
     max_course_hours_per_day: float | None,
+    blocked_dates: set[dt.date],
 ) -> None:
     total_hours = sum(task.hours for task in tasks)
     plan_hours = sum(item.hours for item in allocations if not item.task_name.startswith("RISK:"))
@@ -224,6 +244,8 @@ def print_summary(
         print(f"- Weekend budget: {weekend_hours:.1f}h")
     if max_course_hours_per_day is not None:
         print(f"- Per-course daily cap: {max_course_hours_per_day:.1f}h")
+    if blocked_dates:
+        print(f"- Blocked dates: {', '.join(day.isoformat() for day in sorted(blocked_dates))}")
     print(f"- Scheduling mode: {'Weekdays only' if skip_weekends else 'All days'}")
     print(f"- Tasks loaded: {len(tasks)}")
     print(f"- Estimated hours: {total_hours:.1f}")
@@ -333,6 +355,7 @@ def main() -> None:
     args = parse_args()
     start_date = parse_date(args.start_date)
     tasks = load_tasks(Path(args.tasks))
+    blocked_dates = parse_blocked_dates(args.blocked_dates)
     allocations = build_plan(
         tasks,
         start_date,
@@ -340,6 +363,7 @@ def main() -> None:
         skip_weekends=args.skip_weekends,
         weekend_hours=args.weekend_hours,
         max_course_hours_per_day=args.max_course_hours_per_day,
+        blocked_dates=blocked_dates,
     )
     print_summary(
         tasks,
@@ -349,6 +373,7 @@ def main() -> None:
         skip_weekends=args.skip_weekends,
         weekend_hours=args.weekend_hours,
         max_course_hours_per_day=args.max_course_hours_per_day,
+        blocked_dates=blocked_dates,
     )
 
     if args.output:
